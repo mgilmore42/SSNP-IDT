@@ -81,7 +81,7 @@ class Operation:
         self.taped_out = []
         for v in self.vars_out:
             if not v.external:
-                if v.data:
+                if v:
                     self.taped_out.append(v)
                 else:
                     self.taped_out = None
