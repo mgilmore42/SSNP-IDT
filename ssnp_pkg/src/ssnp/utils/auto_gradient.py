@@ -151,7 +151,7 @@ class OperationTape(list):
         tags_container_iter = {}
         tags_build_list = {}
         for tag, container in tags.items():
-            if container:  # tag & container: dict values are iterator (store iter state of container)
+            if container is not None:  # tag & container: dict values are iterator (store iter state of container)
                 tags_container_iter[tag] = iter(container) if reverse else reversed(container)
             else:  # tag only: list to store output gradients
                 tags_build_list[tag] = []
