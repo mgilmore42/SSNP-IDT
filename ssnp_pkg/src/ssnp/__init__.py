@@ -18,6 +18,9 @@ if sys.version_info.major < 3:
 
 import warnings
 
+# remove annoying from 
+warnings.filterwarnings("ignore", message='creating CUBLAS context to get version number')
+
 if sys.version_info < (3, 8):
     warnings.warn("Untested python version. Please use python>=3.8")
 
