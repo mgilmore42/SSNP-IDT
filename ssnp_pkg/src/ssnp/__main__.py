@@ -4,16 +4,21 @@ from time import perf_counter as time
 from tifffile import TiffFile, imwrite
 from pycuda import gpuarray
 
+import pycuda.driver as cuda
+
+from concurrent.futures import ThreadPoolExecutor
+
 from torchvision.transforms import CenterCrop
 
 import argparse
 import tqdm
 
-t = time()
-
 import ssnp
 
 def main():
+    '''
+        Logic to parse command line arguments and call the main function
+    '''
 
     parser = argparse.ArgumentParser(description='Simulates the forward model of IDT using the ssnp framework')
 
@@ -24,7 +29,24 @@ def main():
 
     simulate(**vars(parser.parse_args()))
 
+def gen_data(img, scale=0.01 / 0xFFFF):
+    '''
+        Generator that yields the data from the input image one z slice at a time
+    '''
+    
+    def to_gpu(arr_cpu):
+        arr_gpu = gpuarray.to_gpu(arr_cpu)
+        arr_final = arr_gpu.astype(np.double)
+        arr_final *= scale
+        return arr_final
+
+    for i in range(len(img.pages)):
+        yield to_gpu(img.asarray(i))
+
 def simulate(input_file, output_file, angle_num):
+    '''
+        Simulates the forward model of IDT using the ssnp framework
+    '''
 
     ssnp.config.res = (0.1, 0.1, 0.1)
 
@@ -32,17 +54,17 @@ def simulate(input_file, output_file, angle_num):
 
     z_slices = len(img.pages)
 
-    n = img.asarray(0)
+    arr_init = img.asarray(0)
 
-    if n.dtype.type == np.uint16:
+    if arr_init.dtype.type == np.uint16:
         scale = 0.01 / 0xFFFF
-    elif n.dtype.type == np.uint8:
+    elif arr_init.dtype.type == np.uint8:
         scale = 0.01 / 0xFF
     else:
-        raise ValueError(f"Unknown data type {n.dtype.type} of input image")
+        raise ValueError(f"Unknown data type {arr_init.dtype.type} of input image")
 
     NA = 0.65
-    u = ssnp.read("plane", np.complex128, shape=n.shape, gpu=False)
+    u = ssnp.read("plane", np.complex128, shape=arr_init.shape, gpu=False)
     u = np.broadcast_to(u, (angle_num, *u.shape)).copy()
     beam = ssnp.BeamArray(u)
 
@@ -53,13 +75,8 @@ def simulate(input_file, output_file, angle_num):
 
     beam.backward = 0
 
-    # initializing orginal gpu slice
-    n = gpuarray.to_gpu(img.asarray(0)).astype(np.double)
-
-    for num in tqdm.tqdm(range(z_slices), total=z_slices, desc="Simulating z steps"):
-        n.set(img.asarray(num).astype(np.double))
-        n *= scale
-        beam.ssnp(1, n)
+    for arr in tqdm.tqdm(gen_data(img, scale), total=z_slices, desc="Simulating z steps"):
+        beam.ssnp(1, arr)
 
     beam.ssnp(-z_slices / 2)
     beam.backward = None
@@ -71,8 +88,6 @@ def simulate(input_file, output_file, angle_num):
     measurements = measurements.astype(np.uint16)
 
     imwrite(output_file, measurements, imagej=True)
-
-    # ssnp.write(output_file, measurements, scale=0.5, pre_operator=lambda x: np.abs(x))
 
 if __name__ == '__main__':
     main()
