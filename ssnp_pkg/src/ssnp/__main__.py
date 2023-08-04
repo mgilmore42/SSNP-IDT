@@ -1,14 +1,6 @@
-# import env_init  # This module is in current dir
 import numpy as np
-from time import perf_counter as time
 from tifffile import TiffFile, imwrite
 from pycuda import gpuarray
-
-import pycuda.driver as cuda
-
-from concurrent.futures import ThreadPoolExecutor
-
-from torchvision.transforms import CenterCrop
 
 import argparse
 import tqdm
