@@ -1,11 +1,11 @@
+import tqdm
+import argparse
+
+import ssnp
+
 import numpy as np
 from tifffile import TiffFile, imwrite
 from pycuda import gpuarray
-
-import argparse
-import tqdm
-
-import ssnp
 
 def main():
     '''
@@ -14,7 +14,9 @@ def main():
 
     parser = argparse.ArgumentParser(description='Simulates the forward model of IDT using the ssnp framework')
 
-    parser.add_argument('-n', '--angle_num', type=int, default=8, help='Number of angles to simulate')
+    parser.add_argument('-a', '--angle_num', type=int, default=8, help='Number of angles to simulate')
+
+    parser.add_argument('-n', '--numerical_aperture', type=float, default=0.65, help='Numberical aperture of the objective lens')
 
     parser.add_argument('input_file',  type=argparse.FileType("rb"), help='Input file name')
     parser.add_argument('output_file', type=argparse.FileType("wb"), help='Output file name')
@@ -35,7 +37,7 @@ def gen_data(img, scale=0.01 / 0xFFFF):
     for i in range(len(img.pages)):
         yield to_gpu(img.asarray(i))
 
-def simulate(input_file, output_file, angle_num):
+def simulate(input_file, output_file, angle_num, numerical_aperture):
     '''
         Simulates the forward model of IDT using the ssnp framework
     '''
@@ -48,6 +50,8 @@ def simulate(input_file, output_file, angle_num):
 
     arr_init = img.asarray(0)
 
+    # sets the scale of the input image
+    # based on the data type of the input image
     if arr_init.dtype.type == np.uint16:
         scale = 0.01 / 0xFFFF
     elif arr_init.dtype.type == np.uint8:
@@ -55,25 +59,30 @@ def simulate(input_file, output_file, angle_num):
     else:
         raise ValueError(f"Unknown data type {arr_init.dtype.type} of input image")
 
-    NA = 0.65
+    # setting up the beam
     u = ssnp.read("plane", np.complex128, shape=arr_init.shape, gpu=False)
     u = np.broadcast_to(u, (angle_num, *u.shape)).copy()
     beam = ssnp.BeamArray(u)
 
+    # setting up the beam for the different angles
     for num in range(angle_num):
         xy_theta = num / angle_num * 2 * np.pi
-        c_ab = NA * np.cos(xy_theta), NA * np.sin(xy_theta)
+        c_ab = numerical_aperture * np.cos(xy_theta), numerical_aperture * np.sin(xy_theta)
         beam.forward[num] *= beam.multiplier.tilt(c_ab, trunc=True, gpu=True)
 
+    # NOTE: Don't know what this does
     beam.backward = 0
 
+    # simulating z steps one at a time
     for arr in tqdm.tqdm(gen_data(img, scale), total=z_slices, desc="Simulating z steps"):
         beam.ssnp(1, arr)
 
+    # NOTE: refocusing the beam?
     beam.ssnp(-z_slices / 2)
     beam.backward = None
-    beam.binary_pupil(1.0001 * NA)
+    beam.binary_pupil(1.0001 * numerical_aperture)
 
+    # scaling and quantization of result to save to uinit16 tiff
     measurements = np.abs(beam.forward.get())
     measurements -= measurements.min()
     measurements *= 0xFFFF / measurements.max()
