@@ -360,10 +360,25 @@ class SSNPFuncs(Funcs):
         )
 
     def _get_prop(self, dz):
+        def prop_to_gpu(key):
+            raise NotImplementedError()
+        def ru_to_cpu():
+            raise NotImplementedError()
+
         res = self.res
         n0 = self.n0
         key = round(dz * 1000)
         try:
+            if key in self._prop_cache:
+                raise KeyError()
+            
+            if self._prop_cache_ru == key:
+                return prop
+            else:
+                ru_to_cpu()
+                prop_to_gpu(key)
+                self._prop_cache_ru = key
+
             return self._prop_cache[key]
         except KeyError:
             kz = self.kz
@@ -403,6 +418,7 @@ class SSNPFuncs(Funcs):
             )
             new_prop = {"P": p_mat, "Pg": [p_mat[i].conj() for i in (0, 2, 1, 3)], "Q": q_op, "Qg": q_op_g}
             self._prop_cache[key] = new_prop
+            self._prop_cache_ru = key
             return new_prop
 
     def diffract(self, a, a_d, dz):
