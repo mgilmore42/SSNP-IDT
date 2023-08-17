@@ -359,9 +359,25 @@ class SSNPFuncs(Funcs):
             preamble='#include "cuComplex.h"'
         )
 
+    def _set_prop_ru(self, key: int):
+
+        def gpu_to_pagelocked(arr):
+            cpu_arr = arr.get(pagelocked=True)
+            arr.gpudata.free()
+            return cpu_arr
+
+        # move previous recently used config to cpu
+        data_old = self._prop_cache[self._prop_cache_ru]
+        data_old['P'] = gpu_to_pagelocked(data_old['P'])
+        data_old['Pg'] = [gpu_to_pagelocked(arr) for arr in data_old['Pg']]
+
+        # move new recently used data to gpu
+        data_new = self._prop_cache[key]
+        data_new['P'] = gpuarray.to_gpu(data_new['P'])
+        data_new['Pg'] = [gpuarray.to_gpu(arr) for arr in data_new['Pg']]
+
     def _get_prop(self, dz):
-        def prop_to_gpu(key):
-            raise NotImplementedError()
+
         def ru_to_cpu():
             raise NotImplementedError()
 
@@ -375,8 +391,7 @@ class SSNPFuncs(Funcs):
             if self._prop_cache_ru == key:
                 return prop
             else:
-                ru_to_cpu()
-                prop_to_gpu(key)
+                self._set_prop_ru(key)
                 self._prop_cache_ru = key
 
             return self._prop_cache[key]
