@@ -14,10 +14,33 @@ def _cache_array(func):
         key, calc = func(self, *args, **kwargs)
         if gpu:
             try:
-                return self._gpu_cache[key]
+                if not hasattr(self, "_gpu_cache_ru"):
+                    raise KeyError()
+                
+                if self._gpu_cache_ru == key:
+                    return self._gpu_cache[key]
+                else:
+
+                    if self._gpu_cache_ru != key:
+                        # frees old cached array from gpu
+                        key_old = self._gpu_cache_ru
+                        arr_gpu = self._gpu_cache[key_old]
+                        arr_cpu = arr_gpu.get(pagelocked=True)
+                        arr_gpu.gpudata.free()
+                        self._gpu_cache[key_old] = arr_cpu
+
+                    # puts cached array to gpu
+                    arr_cpu = self._gpu_cache[key]
+                    arr_gpu = gpuarray.to_gpu_async(arr_cpu, stream=self.stream)
+                    self._gpu_cache[key] = arr_gpu
+                    self._gpu_cache_ru = key
+
+                    return arr_gpu
+
             except KeyError:
                 arr = gpuarray.to_gpu_async(get_cache(self, *args, gpu=False, **kwargs), stream=self.stream)
                 self._gpu_cache[key] = arr
+                self._gpu_cache_ru = key
                 return arr
         try:
             return self._cache[key]
