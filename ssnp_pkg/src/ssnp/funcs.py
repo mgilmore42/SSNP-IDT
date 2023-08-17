@@ -368,24 +368,21 @@ class SSNPFuncs(Funcs):
 
         # move previous recently used config to cpu
         data_old = self._prop_cache[self._prop_cache_ru]
-        data_old['P'] = gpu_to_pagelocked(data_old['P'])
+        data_old['P']  = [gpu_to_pagelocked(arr) for arr in data_old['P'] ]
         data_old['Pg'] = [gpu_to_pagelocked(arr) for arr in data_old['Pg']]
 
         # move new recently used data to gpu
         data_new = self._prop_cache[key]
-        data_new['P'] = gpuarray.to_gpu(data_new['P'])
+        data_new['P']  = [gpuarray.to_gpu(arr) for arr in data_new['P'] ]
         data_new['Pg'] = [gpuarray.to_gpu(arr) for arr in data_new['Pg']]
 
     def _get_prop(self, dz):
-
-        def ru_to_cpu():
-            raise NotImplementedError()
 
         res = self.res
         n0 = self.n0
         key = round(dz * 1000)
         try:
-            if key in self._prop_cache:
+            if key not in self._prop_cache.keys():
                 raise KeyError()
             
             if self._prop_cache_ru != key:
