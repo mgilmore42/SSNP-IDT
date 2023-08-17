@@ -388,9 +388,7 @@ class SSNPFuncs(Funcs):
             if key in self._prop_cache:
                 raise KeyError()
             
-            if self._prop_cache_ru == key:
-                return prop
-            else:
+            if self._prop_cache_ru != key:
                 self._set_prop_ru(key)
                 self._prop_cache_ru = key
 
