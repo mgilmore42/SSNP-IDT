@@ -359,8 +359,8 @@ class SSNPFuncs(Funcs):
             preamble='#include "cuComplex.h"'
         )
 
-    def _set_prop_ru(self, key: int):
-
+    def _unset_prop_ru(self):
+        
         def gpu_to_pagelocked(arr):
             cpu_arr = arr.get(pagelocked=True)
             arr.gpudata.free()
@@ -370,6 +370,10 @@ class SSNPFuncs(Funcs):
         data_old = self._prop_cache[self._prop_cache_ru]
         data_old['P']  = [gpu_to_pagelocked(arr) for arr in data_old['P'] ]
         data_old['Pg'] = [gpu_to_pagelocked(arr) for arr in data_old['Pg']]
+
+    def _set_prop_ru(self, key: int):
+
+        self._unset_prop_ru()
 
         # move new recently used data to gpu
         data_new = self._prop_cache[key]
@@ -426,6 +430,8 @@ class SSNPFuncs(Funcs):
                 preamble='#include "cuComplex.h"',
                 name="ssnp_qg"
             )
+            if hasattr(self, '_prop_cache_ru'):
+                self._unset_prop_ru()
             new_prop = {"P": p_mat, "Pg": [p_mat[i].conj() for i in (0, 2, 1, 3)], "Q": q_op, "Qg": q_op_g}
             self._prop_cache[key] = new_prop
             self._prop_cache_ru = key
