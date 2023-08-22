@@ -118,10 +118,11 @@ class Multipliers:
         na /= n0  # NA = n0 sin(gamma), use NA' = NA/n0 to make the mask formula the same as air
         key = ("bp", round(na, 4), res)
 
-        def calc():
-            mask = np.greater(c_gamma, np.sqrt(1 - na ** 2))
-            mask = mask.astype(np.complex128)
-            return mask
+        def calc(out : np.ndarray | None = None):
+            if out is None:
+                out = np.empty(self._shape, dtype=np.complex128)
+            np.greater(c_gamma.real, np.sqrt(1 - na ** 2), out=out.real)
+            return out
 
         return key, calc
 
